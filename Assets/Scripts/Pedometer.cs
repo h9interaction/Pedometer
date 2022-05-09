@@ -1,74 +1,104 @@
-using UnityEngine;
+using System;
 using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Events;
 using UnityEngine.UI;
+using TMPro;
+
+[Serializable]
+public class WalkEvent : UnityEvent<int> { }
 
 public class Pedometer : MonoBehaviour
 {
-    public float lowLimit = 0.005f;
+    public WalkEvent onWalk = new WalkEvent();
+    public TextMeshProUGUI txt_Steps;
+    public int steps = 0;
+
     public float highLimit = 0.1f;
+    public float lowLimit = 0.005f;
+    public bool isHigh = false;
 
-    public float steps = 0.0f;
+    public float filterHigh = 10.0f;
+    public float filterLow = 0.1f;
+    public float curAcc = 0f;
+    public float avgAcc = 0f;
+    public float delta = 0;
 
-    public bool stateH = false;
+    public int counter = 30;
+    public int waitTime = 30;
+    public int oldSteps;
+    public bool isCountable;
+    public bool isWalkable = true;
 
-    public float fHigh = 10.0f;
-    public float fLow = 0.1f;
-
-    private float curAcc = 0.0f;
-    private float avgAcc;
-
-    private float delta;
-
-    public Text gStepCount;
-
-    public static bool isWalking = false;
-    public float currentTime;
-    public float walkingTime;
-
-    void Start()
+    bool isAccOn;
+    
+    public TextMeshProUGUI txt_isHigh, txt_delta, txt_curAcc, txt_avgAcc;
+    
+    private void Awake()
     {
-        avgAcc = Input.acceleration.magnitude;
+        onWalk = new WalkEvent();
+        oldSteps = steps;
+        txt_Steps.text = steps.ToString();
+    }
+    
+    public void Init()
+    {
+        isWalkable = true;
+    }
+    
+    private void FixedUpdate()
+    {
+        if (isWalkable)
+        {
+            if (isAccOn)
+            {
+                curAcc = Mathf.Lerp(curAcc, Input.acceleration.magnitude, Time.deltaTime * filterHigh);
+                avgAcc = Mathf.Lerp(avgAcc, Input.acceleration.magnitude, Time.deltaTime * filterLow);
+                delta = curAcc - avgAcc;
+
+                if (!isHigh)
+                {
+                    if (delta > highLimit)
+                    {
+                        isHigh = true;
+                        steps++;
+                        if (onWalk != null)
+                        {
+                            Debug.Log("[Pedometer] onWalk : " + steps);
+                            onWalk.Invoke(steps);
+                        }
+                    }
+                }
+                else
+                {
+                    if (delta < lowLimit)
+                    {
+                        isHigh = false;
+                    }
+                }
+            }
+        }
     }
 
-    void FixedUpdate()
+    public void Play()
     {
-        curAcc = Mathf.Lerp(curAcc, Input.acceleration.magnitude, Time.deltaTime * fHigh);
-        avgAcc = Mathf.Lerp(avgAcc, Input.acceleration.magnitude, Time.deltaTime * fLow);
-
-        delta = curAcc - avgAcc;
-
-        if (!stateH)
-        {
-            if (delta > highLimit)
-            {
-                stateH = true;
-                currentTime = Time.time;
-                walkingTime = currentTime + 0.75f;
-                steps++;
-                gStepCount.text = "Steps: " + steps;
-            }
-        }
-        else
-        {
-            if (delta < lowLimit)
-            {
-                stateH = false;
-            }
-        }
+        StopCoroutine(CheckAcc());
+        StartCoroutine(CheckAcc());
     }
 
-    void Update()
+    public void Stop()
     {
-        if (stateH)
+        isWalkable = false;
+    }
+
+    IEnumerator CheckAcc()
+    {
+        while (avgAcc < 0.9f)
         {
-            isWalking = true;
+            avgAcc = Input.acceleration.magnitude;
+            yield return null;
         }
-        if (isWalking)
-        {
-            if (Time.time > walkingTime)
-            {
-                isWalking = false;
-            }
-        }
+        isAccOn = true;
     }
 }
