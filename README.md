@@ -1,1 +1,3 @@
 # Pedometer
+
+## Step Counter
